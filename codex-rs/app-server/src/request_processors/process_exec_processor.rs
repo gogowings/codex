@@ -26,6 +26,7 @@ use codex_core::exec::IO_DRAIN_TIMEOUT_MS;
 use codex_exec_server::EnvironmentManager;
 use codex_protocol::exec_output::bytes_to_string_smart;
 use codex_protocol::shell_environment::is_non_inheritable_env_var;
+use codex_protocol::shell_environment::utf8_environment_variables;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
 use codex_utils_pty::ProcessHandle;
@@ -95,7 +96,7 @@ impl ProcessExecRequestProcessor {
         if size.is_some() && !tty {
             return Err(invalid_params("process/spawn size requires tty: true"));
         }
-        let mut env = std::env::vars().collect::<HashMap<_, _>>();
+        let mut env = utf8_environment_variables().collect::<HashMap<_, _>>();
         if let Some(env_overrides) = env_overrides {
             for (key, value) in env_overrides {
                 match value {

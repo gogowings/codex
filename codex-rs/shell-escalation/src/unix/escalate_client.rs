@@ -4,6 +4,7 @@ use std::os::fd::AsRawFd;
 use std::os::fd::OwnedFd;
 
 use anyhow::Context as _;
+use codex_protocol::shell_environment::utf8_environment_variables;
 use codex_utils_absolute_path::AbsolutePathBuf;
 
 use crate::unix::escalate_protocol::ESCALATE_SOCKET_ENV_VAR;
@@ -44,7 +45,7 @@ pub async fn run_shell_escalation_execve_wrapper(
         .send_with_fds(&HANDSHAKE_MESSAGE, &[server.into_inner().into()])
         .await
         .context("failed to send handshake datagram")?;
-    let env = std::env::vars()
+    let env = utf8_environment_variables()
         .filter(|(k, _)| !matches!(k.as_str(), ESCALATE_SOCKET_ENV_VAR | EXEC_WRAPPER_ENV_VAR))
         .collect();
     client

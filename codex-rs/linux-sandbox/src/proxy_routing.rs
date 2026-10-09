@@ -5,6 +5,7 @@ use crate::proxy_lifecycle::receive_listener;
 use crate::proxy_lifecycle::send_listener;
 use codex_network_proxy::PROXY_ATTRIBUTION_TOKEN_ENV_KEY;
 use codex_network_proxy::write_attribution_frame;
+use codex_protocol::shell_environment::utf8_environment_variables;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -73,7 +74,8 @@ struct ProxyRoutePlan {
 }
 
 pub(crate) fn prepare_host_proxy_route_spec() -> io::Result<(String, Vec<File>)> {
-    let (attribution_token, plan) = extract_attribution_token_and_plan(std::env::vars().collect());
+    let (attribution_token, plan) =
+        extract_attribution_token_and_plan(utf8_environment_variables().collect());
     // SAFETY: the sandbox helper is single-threaded here, before it forks bridge workers or
     // executes the user command.
     unsafe {

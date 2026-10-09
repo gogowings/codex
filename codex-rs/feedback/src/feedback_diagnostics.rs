@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use codex_protocol::shell_environment::utf8_environment_variables;
+
 pub const FEEDBACK_DIAGNOSTICS_ATTACHMENT_FILENAME: &str = "codex-connectivity-diagnostics.txt";
 const PROXY_ENV_VARS: &[&str] = &[
     "HTTP_PROXY",
@@ -27,7 +29,7 @@ impl FeedbackDiagnostics {
     }
 
     pub fn collect_from_env() -> Self {
-        Self::collect_from_pairs(std::env::vars())
+        Self::collect_from_pairs(utf8_environment_variables())
     }
 
     fn collect_from_pairs<I, K, V>(pairs: I) -> Self

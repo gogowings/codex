@@ -2,6 +2,7 @@ use super::*;
 #[cfg(target_os = "windows")]
 use anyhow::Context as _;
 use codex_protocol::sandbox::SandboxType;
+use codex_protocol::shell_environment::utf8_environment_variables;
 use codex_utils_path_uri::PathUri;
 
 #[derive(Clone)]
@@ -52,7 +53,7 @@ impl WindowsSandboxRequestProcessor {
                         if !codex_windows_sandbox::registered_core_needs_refresh(&config.codex_home)? {
                             return Ok(());
                         }
-                        let env_map = std::env::vars().collect();
+                        let env_map = utf8_environment_variables().collect();
                         let policy = config.permissions.effective_permission_profile();
                         let (settings, listeners) = match config.permissions.network.as_ref() {
                             Some(network) => network.windows_sandbox_proxy_listeners()?,
@@ -145,7 +146,7 @@ impl WindowsSandboxRequestProcessor {
                 permission_profile: config.permissions.effective_permission_profile(),
                 workspace_roots,
                 command_cwd,
-                env_map: std::env::vars().collect(),
+                env_map: utf8_environment_variables().collect(),
                 codex_home: config.codex_home.to_path_buf(),
             };
             let setup_result = async {
