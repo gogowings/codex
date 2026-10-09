@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 use std::process::Command;
 
+#[cfg(unix)]
+use std::ffi::OsString;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStringExt;
+
 use pretty_assertions::assert_eq;
 
 use super::*;
@@ -8,6 +13,50 @@ use super::*;
 const CHILD_MODE_ENV_VAR: &str = "CODEX_SHELL_ENVIRONMENT_SCRUBBER_TEST_MODE";
 const TEST_NAME: &str =
     "shell_environment::tests::command_scrubber_removes_names_from_real_child_environment";
+
+#[cfg(unix)]
+const NON_UTF8_CHILD_MODE_ENV_VAR: &str = "CODEX_SHELL_ENVIRONMENT_NON_UTF8_TEST_MODE";
+#[cfg(unix)]
+const NON_UTF8_ENV_VAR: &str = "CODEX_SHELL_ENVIRONMENT_NON_UTF8_TEST_VALUE";
+#[cfg(unix)]
+const NON_UTF8_TEST_NAME: &str =
+    "shell_environment::tests::create_env_tolerates_non_utf8_environment_values";
+
+#[cfg(unix)]
+#[test]
+fn create_env_tolerates_non_utf8_environment_values() {
+    if std::env::var_os(NON_UTF8_CHILD_MODE_ENV_VAR).is_none() {
+        let output = Command::new(std::env::current_exe().expect("locate current test binary"))
+            .args([NON_UTF8_TEST_NAME, "--exact", "--nocapture"])
+            .env(NON_UTF8_CHILD_MODE_ENV_VAR, "1")
+            .env(NON_UTF8_ENV_VAR, OsString::from_vec(vec![0xff]))
+            .output()
+            .expect("run non-UTF-8 environment test process");
+        assert!(
+            output.status.success(),
+            "child failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    let policy = ShellEnvironmentPolicy {
+        inherit: ShellEnvironmentPolicyInherit::All,
+        ignore_default_excludes: true,
+        ..Default::default()
+    };
+    let env = create_env(&policy, /*thread_id*/ None);
+
+    assert!(!env.contains_key(NON_UTF8_ENV_VAR));
+    let status = Command::new("/bin/sh")
+        .args(["-c", "exit 0"])
+        .env_clear()
+        .envs(env)
+        .status()
+        .expect("run command with constructed environment");
+    assert!(status.success());
+}
 
 #[test]
 fn non_inheritable_environment_is_removed_after_policy_overrides() {

@@ -56,7 +56,13 @@ pub fn create_env(
     policy: &ShellEnvironmentPolicy,
     thread_id: Option<&str>,
 ) -> HashMap<String, String> {
-    create_env_from_vars(std::env::vars(), policy, thread_id)
+    // Environment keys and values are not necessarily valid UTF-8, while the
+    // policy representation intentionally uses String keys and values. Skip
+    // only entries that cannot be represented rather than panicking while
+    // iterating the ambient environment.
+    let vars = std::env::vars_os()
+        .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)));
+    create_env_from_vars(vars, policy, thread_id)
 }
 
 pub fn create_env_from_vars<I>(
