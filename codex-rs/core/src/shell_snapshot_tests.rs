@@ -24,6 +24,8 @@ use core_test_support::PathExt;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 #[cfg(unix)]
 use std::process::Command;
@@ -31,6 +33,14 @@ use std::process::Command;
 use std::process::Command as StdCommand;
 
 use tempfile::tempdir;
+
+#[cfg(unix)]
+const NON_UTF8_CHILD_MODE_ENV_VAR: &str = "CODEX_SHELL_SNAPSHOT_NON_UTF8_TEST_MODE";
+#[cfg(unix)]
+const NON_UTF8_ENV_VAR: &str = "CODEX_SHELL_SNAPSHOT_NON_UTF8_TEST_VALUE";
+#[cfg(unix)]
+const NON_UTF8_TEST_NAME: &str =
+    "shell_snapshot::tests::shell_snapshot_tolerates_non_utf8_inherited_environment";
 
 #[cfg(unix)]
 struct BlockingStdinPipe {
@@ -86,6 +96,90 @@ impl Drop for BlockingStdinPipe {
             libc::close(self.write_end);
         }
     }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn shell_snapshot_tolerates_non_utf8_inherited_environment() -> Result<()> {
+    if std::env::var_os(NON_UTF8_CHILD_MODE_ENV_VAR).is_none() {
+        let output = Command::new(std::env::current_exe().context("locate current test binary")?)
+            .args([NON_UTF8_TEST_NAME, "--exact", "--nocapture"])
+            .env(NON_UTF8_CHILD_MODE_ENV_VAR, "1")
+            .env(NON_UTF8_ENV_VAR, std::ffi::OsString::from_vec(vec![0xff]))
+            .output()
+            .context("run non-UTF-8 shell snapshot test process")?;
+        assert!(
+            output.status.success(),
+            "child failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return Ok(());
+    }
+
+    use crate::tools::sandboxing::SandboxAttempt;
+    use codex_protocol::config_types::WindowsSandboxLevel;
+    use codex_sandboxing::SandboxManager;
+    use codex_sandboxing::SandboxType;
+
+    let dir = tempdir()?;
+    let cwd = dir.path().abs();
+    let shell = Shell {
+        shell_type: ShellType::Sh,
+        shell_path: PathBuf::from("/bin/sh"),
+    };
+    let started_proxy = credential_snapshot_proxy().await?;
+    let credential_broker = SnapshotCredentialBroker {
+        network_proxy: started_proxy.proxy(),
+        shell_environment_policy: ShellEnvironmentPolicy::default(),
+        allow_login_shell: false,
+    };
+    write_shell_snapshot(
+        &shell,
+        &cwd.join("snapshot.sh"),
+        &cwd,
+        &credential_broker.shell_environment_policy,
+        Some(&credential_broker),
+        /*sandbox*/ None,
+    )
+    .await?;
+
+    let cwd_uri = PathUri::from_abs_path(&cwd);
+    let manager = SandboxManager::new();
+    let permissions = PermissionProfile::Disabled;
+    let attempt = SandboxAttempt {
+        sandbox_override: SandboxOverride::NoOverride,
+        sandbox: SandboxType::None,
+        sandbox_requested: false,
+        permissions: &permissions,
+        exec_server_permissions: &permissions,
+        enforce_managed_network: false,
+        manager: &manager,
+        sandbox_cwd: &cwd_uri,
+        workspace_roots: std::slice::from_ref(&cwd_uri),
+        sandbox_exe: None,
+        use_legacy_landlock: false,
+        windows_sandbox_type: SandboxType::None,
+        windows_sandbox_level: WindowsSandboxLevel::Disabled,
+        network_denial_cancellation_token: None,
+        network_proxy: None,
+    };
+    let sandbox = ShellSnapshotSandbox::new(
+        &attempt, /*network*/ None, "local", /*additional_permissions*/ None,
+    );
+    let output = run_script_with_timeout(
+        &shell,
+        "printf snapshot",
+        Duration::from_secs(5),
+        SnapshotShellMode::NonLogin,
+        &cwd,
+        /*credential_broker*/ None,
+        Some(&sandbox),
+    )
+    .await?;
+    assert_eq!(output, "snapshot");
+
+    Ok(())
 }
 
 #[cfg(not(target_os = "windows"))]

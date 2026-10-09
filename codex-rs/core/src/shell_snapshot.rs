@@ -24,6 +24,7 @@ use codex_otel::SessionTelemetry;
 use codex_protocol::ThreadId;
 use codex_protocol::config_types::ShellEnvironmentPolicy;
 use codex_protocol::shell_environment::create_env_from_vars;
+use codex_protocol::shell_environment::utf8_environment_variables;
 use codex_shell_command::shell_snapshot::CapturedSnapshot;
 use codex_shell_command::shell_snapshot::PreparedSnapshot;
 use codex_shell_command::shell_snapshot::SnapshotCaptureOptions;
@@ -630,7 +631,7 @@ async fn capture_snapshot(
         .collect::<Vec<_>>();
     let policy = &credential_broker.shell_environment_policy;
     // Child visibility must not change the trusted destination of an inherited credential.
-    let inherited_env = std::env::vars().collect();
+    let inherited_env = utf8_environment_variables().collect();
     let network_config = credential_broker.network_proxy.current_cfg().await?;
     let inherited_env = network_config
         .credential_broker_context
@@ -1040,7 +1041,11 @@ async fn run_script_with_timeout(
     let mut prepared_env = None;
     if let Some(credential_broker) = credential_broker {
         let policy = &credential_broker.shell_environment_policy;
-        let mut env = create_env_from_vars(std::env::vars(), policy, /*thread_id*/ None);
+        let mut env = create_env_from_vars(
+            utf8_environment_variables(),
+            policy,
+            /*thread_id*/ None,
+        );
         if suppress_startup_files {
             env.remove("BASH_ENV");
             env.remove("ENV");
@@ -1057,7 +1062,7 @@ async fn run_script_with_timeout(
             .run(
                 args,
                 cwd,
-                prepared_env.unwrap_or_else(|| std::env::vars().collect()),
+                prepared_env.unwrap_or_else(|| utf8_environment_variables().collect()),
                 snapshot_timeout,
                 shell_name,
                 snapshot_read_path,

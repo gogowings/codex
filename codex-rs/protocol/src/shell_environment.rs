@@ -60,9 +60,12 @@ pub fn create_env(
     // policy representation intentionally uses String keys and values. Skip
     // only entries that cannot be represented rather than panicking while
     // iterating the ambient environment.
-    let vars = std::env::vars_os()
-        .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)));
-    create_env_from_vars(vars, policy, thread_id)
+    create_env_from_vars(utf8_environment_variables(), policy, thread_id)
+}
+
+pub fn utf8_environment_variables() -> impl Iterator<Item = (String, String)> {
+    std::env::vars_os()
+        .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)))
 }
 
 pub fn create_env_from_vars<I>(
