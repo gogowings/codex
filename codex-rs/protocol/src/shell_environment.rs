@@ -63,6 +63,10 @@ pub fn create_env(
     create_env_from_vars(utf8_environment_variables(), policy, thread_id)
 }
 
+/// Yields inherited environment entries whose keys and values convert losslessly to UTF-8.
+///
+/// Serializable environment maps use `String`, so entries that cannot be represented are
+/// intentionally omitted.
 pub fn utf8_environment_variables() -> impl Iterator<Item = (String, String)> {
     std::env::vars_os()
         .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)))
