@@ -1080,7 +1080,7 @@ async fn run_script_with_timeout(
     {
         // The shared launcher needs the complete child environment.
         handler.env_clear();
-        handler.envs(std::env::vars_os());
+        handler.envs(utf8_environment_variables());
     }
     if let Some(env) = prepared_env {
         handler.env_clear();

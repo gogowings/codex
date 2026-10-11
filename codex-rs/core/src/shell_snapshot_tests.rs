@@ -128,6 +128,19 @@ async fn shell_snapshot_tolerates_non_utf8_inherited_environment() -> Result<()>
         shell_type: ShellType::Sh,
         shell_path: PathBuf::from("/bin/sh"),
     };
+    let direct_snapshot_path = cwd.join("direct-snapshot.sh");
+    write_shell_snapshot(
+        &shell,
+        &direct_snapshot_path,
+        &cwd,
+        &ShellEnvironmentPolicy::default(),
+        /*credential_broker*/ None,
+        /*sandbox*/ None,
+    )
+    .await?;
+    let direct_snapshot = fs::read_to_string(&direct_snapshot_path).await?;
+    assert!(!direct_snapshot.contains(NON_UTF8_ENV_VAR));
+
     let started_proxy = credential_snapshot_proxy().await?;
     let credential_broker = SnapshotCredentialBroker {
         network_proxy: started_proxy.proxy(),
